@@ -1,8 +1,8 @@
-use std::io::{BufReader, BufRead, Seek, Cursor};
 use std::fs::File;
+use std::io::{BufRead, BufReader, Cursor, Seek};
 use std::path::Path;
 
-use types::Result;
+use crate::types::Result;
 
 /// Provides several convenience functions for loading metadata from various sources.
 pub trait LoadableMetadata: Sized {
@@ -23,7 +23,7 @@ pub trait LoadableMetadata: Sized {
     /// Delegates to `LoadableMetadata::load_from_seek()` method by default.
     #[inline]
     fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let mut f = BufReader::new(try!(File::open(path)));
+        let mut f = BufReader::new(File::open(path)?);
         LoadableMetadata::load_from_seek(&mut f)
     }
 
@@ -35,4 +35,3 @@ pub trait LoadableMetadata: Sized {
         LoadableMetadata::load_from_seek(&mut Cursor::new(buf))
     }
 }
-

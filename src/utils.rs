@@ -1,7 +1,7 @@
-use std::io::{self, Read, BufRead, ErrorKind};
+use std::io::{self, BufRead, ErrorKind, Read};
 
-use byteorder::{ReadBytesExt, LittleEndian, BigEndian};
 use byteorder::ByteOrder as ByteOrderTrait;
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 
 pub trait ReadExt: Read {
     fn read_exact_0(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
@@ -15,7 +15,7 @@ pub trait ReadExt: Read {
 
     fn read_to_vec(&mut self) -> io::Result<Vec<u8>> {
         let mut buf = Vec::new();
-        try!(self.read_to_end(&mut buf));
+        self.read_to_end(&mut buf)?;
         Ok(buf)
     }
 }
@@ -29,7 +29,7 @@ pub trait BufReadExt: BufRead {
             let available = match self.fill_buf() {
                 Ok(n) => n.len(),
                 Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             } as u64;
             let total = skipped + available;
             if total >= n {
@@ -55,7 +55,7 @@ pub trait BufReadExt: BufRead {
                 let available = match self.fill_buf() {
                     Ok(n) => n,
                     Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
-                    Err(e) => return Err(e)
+                    Err(e) => return Err(e),
                 };
                 match available.iter().position(|&b| b == delim) {
                     Some(i) => (true, i + 1),
@@ -112,7 +112,6 @@ gen_byte_order_ops! {
     read_f32, write_f32 -> f32,
     read_f64, write_f64 -> f64
 }
-
 
 macro_rules! gen_read_byte_order_ext {
     ($tr:ident, $($name:ident -> $tpe:ty),+) => {

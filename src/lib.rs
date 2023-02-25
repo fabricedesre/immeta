@@ -30,10 +30,6 @@
 //! which the image consists of. If you need this functionality, consider using a library
 //! like [image](https://crates.io/crates/image).
 
-extern crate byteorder;
-extern crate num_traits;
-extern crate arrayvec;
-
 pub use types::*;
 pub use traits::*;
 pub use generic::*;

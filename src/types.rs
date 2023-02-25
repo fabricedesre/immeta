@@ -1,8 +1,8 @@
-use std::io;
-use std::result;
-use std::fmt;
 use std::borrow::Cow;
 use std::error;
+use std::fmt;
+use std::io;
+use std::result;
 
 use num_traits::ToPrimitive;
 
@@ -22,7 +22,7 @@ pub enum Error {
     UnexpectedEndOfFile(Option<Cow<'static, str>>),
 
     /// Returned when an I/O error occurs when reading an input stream.
-    Io(io::Error)
+    Io(io::Error),
 }
 
 impl fmt::Display for Error {
@@ -31,7 +31,7 @@ impl fmt::Display for Error {
             Error::InvalidFormat(ref s) => write!(f, "invalid image format: {}", s),
             Error::UnexpectedEndOfFile(None) => write!(f, "unexpected end of file"),
             Error::UnexpectedEndOfFile(Some(ref s)) => write!(f, "unexpected end of file: {}", s),
-            Error::Io(ref e) => write!(f, "I/O error: {}", e)
+            Error::Io(ref e) => write!(f, "I/O error: {}", e),
         }
     }
 }
@@ -41,14 +41,14 @@ impl error::Error for Error {
         match *self {
             Error::InvalidFormat(_) => "invalid image format",
             Error::UnexpectedEndOfFile(_) => "unexpected end of file",
-            Error::Io(_) => "i/o error"
+            Error::Io(_) => "i/o error",
         }
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             Error::Io(ref e) => Some(e),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -75,14 +75,14 @@ pub struct Dimensions {
     /// Image width in pixels.
     pub width: u32,
     /// Image height in pixels.
-    pub height: u32
+    pub height: u32,
 }
 
 impl<T: ToPrimitive, U: ToPrimitive> From<(T, U)> for Dimensions {
     fn from((w, h): (T, U)) -> Dimensions {
         Dimensions {
             width: w.to_u32().unwrap(),
-            height: h.to_u32().unwrap()
+            height: h.to_u32().unwrap(),
         }
     }
 }

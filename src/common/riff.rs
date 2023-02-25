@@ -1,12 +1,12 @@
-use std::io::{self, Read, Take};
-use std::str;
-use std::result;
 use std::fmt;
+use std::io::{self, Read, Take};
+use std::result;
+use std::str;
 
-use byteorder::{ReadBytesExt, LittleEndian};
+use byteorder::{LittleEndian, ReadBytesExt};
 
-use types::Result;
-use utils::ReadExt;
+use crate::types::Result;
+use crate::utils::ReadExt;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct ChunkId(pub [u8; 4]);
@@ -29,47 +29,46 @@ impl fmt::Display for ChunkId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.as_str() {
             Some(s) => f.write_str(s),
-            None => write!(f, "{:?}", self.as_bytes())
+            None => write!(f, "{:?}", self.as_bytes()),
         }
     }
 }
 
 pub struct RiffReader<R: Read> {
-    source: R
+    source: R,
 }
 
 impl<R: Read> RiffReader<R> {
     pub fn new(source: R) -> RiffReader<R> {
-        RiffReader {
-            source: source
-        }
+        RiffReader { source: source }
     }
 
     pub fn root(&mut self) -> Result<RiffListChunk> {
-        let (id, len) = match try!(read_id_and_len(&mut self.source)) {
+        let (id, len) = match read_id_and_len(&mut self.source)? {
             Some(t) => t,
-            None => return Err(unexpected_eof!())
+            None => return Err(unexpected_eof!()),
         };
 
         if id.as_bytes() != b"RIFF" {
             return Err(invalid_format!("RIFF file header is invalid"));
         }
 
-        Ok(try!(RiffChunk {
+        Ok(RiffChunk {
             data: Counter {
-                delegate: (&mut self.source as &mut Read).take(len as u64),
-                counter: None
+                delegate: (&mut self.source as &mut dyn Read).take(len as u64),
+                counter: None,
             },
             tainted: false,
             chunk_id: id,
-            len: len
-        }.into_list_unchecked()))
+            len: len,
+        }
+        .into_list_unchecked()?)
     }
 }
 
 struct Counter<'a, R> {
     delegate: R,
-    counter: Option<&'a mut u32>
+    counter: Option<&'a mut u32>,
 }
 
 impl<'a, R: Read> Read for Counter<'a, R> {
@@ -87,28 +86,33 @@ pub struct RiffChunk<'a> {
     chunk_id: ChunkId,
     len: u32,
     tainted: bool,
-    data: Counter<'a, Take<&'a mut Read>>
+    data: Counter<'a, Take<&'a mut dyn Read>>,
 }
 
 impl<'a> RiffChunk<'a> {
     #[inline]
-    pub fn chunk_id(&self) -> ChunkId { self.chunk_id }
+    pub fn chunk_id(&self) -> ChunkId {
+        self.chunk_id
+    }
 
     #[inline]
-    pub fn len(&self) -> u32 { self.len }
+    pub fn len(&self) -> u32 {
+        self.len
+    }
 
     #[inline]
-    pub fn contents(&mut self) -> &mut Read { 
+    pub fn contents(&mut self) -> &mut dyn Read {
         self.tainted = true;
         &mut self.data
     }
 
     #[inline]
     pub fn can_have_subchunks(&self) -> bool {
-        !self.tainted && match &self.chunk_id.0 {
-            b"RIFF" | b"LIST" => true,
-            _ => false
-        }
+        !self.tainted
+            && match &self.chunk_id.0 {
+                b"RIFF" | b"LIST" => true,
+                _ => false,
+            }
     }
 
     #[inline]
@@ -123,8 +127,11 @@ impl<'a> RiffChunk<'a> {
     fn into_list_unchecked(mut self) -> Result<RiffListChunk<'a>> {
         let mut chunk_type = [0u8; 4];
 
-        if try!(self.data.read_exact_0(&mut chunk_type)) != 4 {
-            return Err(unexpected_eof!("when reading chunk type of chunk {}", self.chunk_id));
+        if self.data.read_exact_0(&mut chunk_type)? != 4 {
+            return Err(unexpected_eof!(
+                "when reading chunk type of chunk {}",
+                self.chunk_id
+            ));
         }
 
         Ok(RiffListChunk {
@@ -133,7 +140,7 @@ impl<'a> RiffChunk<'a> {
             chunk_type: ChunkId(chunk_type),
             data: self.data,
             cur_chunk_len: 0,
-            cur_chunk_read: 0
+            cur_chunk_read: 0,
         })
     }
 }
@@ -142,20 +149,26 @@ pub struct RiffListChunk<'a> {
     chunk_id: ChunkId,
     len: u32,
     chunk_type: ChunkId,
-    data: Counter<'a, Take<&'a mut Read>>,
+    data: Counter<'a, Take<&'a mut dyn Read>>,
     cur_chunk_len: u32,
-    cur_chunk_read: u32
+    cur_chunk_read: u32,
 }
 
 impl<'a> RiffListChunk<'a> {
     #[inline]
-    pub fn chunk_id(&self) -> ChunkId { self.chunk_id }
+    pub fn chunk_id(&self) -> ChunkId {
+        self.chunk_id
+    }
 
     #[inline]
-    pub fn len(&self) -> u32 { self.len }
+    pub fn len(&self) -> u32 {
+        self.len
+    }
 
     #[inline]
-    pub fn chunk_type(&self) -> ChunkId { self.chunk_type }
+    pub fn chunk_type(&self) -> ChunkId {
+        self.chunk_type
+    }
 
     #[inline]
     pub fn next(&mut self) -> Option<Result<RiffChunk>> {
@@ -164,14 +177,14 @@ impl<'a> RiffListChunk<'a> {
             match self.data.skip_exact_0(to_skip) {
                 Ok(n) if n == to_skip => {}
                 Ok(_) => return Some(Err(unexpected_eof!())),
-                Err(e) => return Some(Err(e.into()))
+                Err(e) => return Some(Err(e.into())),
             }
         }
 
         let (id, len) = match read_id_and_len(&mut self.data) {
             Ok(Some(t)) => t,
             Ok(None) => return None,
-            Err(e) => return Some(Err(e.into()))
+            Err(e) => return Some(Err(e.into())),
         };
 
         self.cur_chunk_read = 0;
@@ -182,9 +195,9 @@ impl<'a> RiffListChunk<'a> {
             len: len,
             tainted: false,
             data: Counter {
-                delegate: (&mut self.data as &mut Read).take(len as u64),
-                counter: Some(&mut self.cur_chunk_read)
-            }
+                delegate: (&mut self.data as &mut dyn Read).take(len as u64),
+                counter: Some(&mut self.cur_chunk_read),
+            },
         }))
     }
 }
@@ -192,13 +205,13 @@ impl<'a> RiffListChunk<'a> {
 fn read_id_and_len<R: Read>(source: &mut R) -> Result<Option<(ChunkId, u32)>> {
     let mut id = [0u8; 4];
 
-    match try!(source.read_exact_0(&mut id)) {
+    match source.read_exact_0(&mut id)? {
         0 => return Ok(None),
         4 => {}
-        _ => return Err(unexpected_eof!())
+        _ => return Err(unexpected_eof!()),
     }
 
-    let len = try!(source.read_u32::<LittleEndian>());
+    let len = source.read_u32::<LittleEndian>()?;
 
     Ok(Some((ChunkId(id), len)))
 }
@@ -207,11 +220,11 @@ fn read_id_and_len<R: Read>(source: &mut R) -> Result<Option<(ChunkId, u32)>> {
 mod tests {
     use std::io::{Read, Write};
 
-    use byteorder::{WriteBytesExt, LittleEndian};
+    use byteorder::{LittleEndian, WriteBytesExt};
 
-    use utils::ReadExt;
+    use crate::utils::ReadExt;
 
-    use super::{RiffReader, RiffListChunk, ChunkId};
+    use super::{ChunkId, RiffListChunk, RiffReader};
 
     macro_rules! build {
         ($($arg:expr),+) => {{
@@ -348,7 +361,10 @@ mod tests {
             assert_eq!(chunk.chunk_id(), ChunkId(*b"A   "));
             assert_eq!(chunk.len(), 10);
             assert_eq!(
-                (&mut chunk.contents() as &mut Read).take(5).read_to_vec().unwrap(),
+                (&mut chunk.contents() as &mut dyn Read)
+                    .take(5)
+                    .read_to_vec()
+                    .unwrap(),
                 b"abcde".to_owned()
             );
         }
@@ -363,7 +379,10 @@ mod tests {
             let mut chunk = root.next().unwrap().unwrap();
             assert_eq!(chunk.chunk_id(), ChunkId(*b"  C "));
             assert_eq!(chunk.len(), 8);
-            assert_eq!(chunk.contents().read_to_vec().unwrap(), b"ABCDEFGH".to_owned());
+            assert_eq!(
+                chunk.contents().read_to_vec().unwrap(),
+                b"ABCDEFGH".to_owned()
+            );
         }
 
         assert!(root.next().is_none());

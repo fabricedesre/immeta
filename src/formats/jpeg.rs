@@ -1,13 +1,13 @@
 //! Metadata of JPEG images.
 
-use std::io::BufRead;
 use std::fmt;
+use std::io::BufRead;
 
-use byteorder::{ReadBytesExt, BigEndian};
+use byteorder::{BigEndian, ReadBytesExt};
 
-use types::{Result, Dimensions};
-use traits::LoadableMetadata;
-use utils::BufReadExt;
+use crate::traits::LoadableMetadata;
+use crate::types::{Dimensions, Result};
+use crate::utils::BufReadExt;
 
 /// Coding process used in an image.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -17,7 +17,7 @@ pub enum CodingProcess {
     /// Progressive DCT.
     DctProgressive,
     /// Lossless coding.
-    Lossless
+    Lossless,
 }
 
 impl fmt::Display for CodingProcess {
@@ -36,7 +36,7 @@ impl CodingProcess {
             0xc0 | 0xc1 | 0xc5 | 0xc9 | 0xcd => Some(CodingProcess::DctSequential),
             0xc2 | 0xc6 | 0xca | 0xce => Some(CodingProcess::DctProgressive),
             0xc3 | 0xc7 | 0xcb | 0xcf => Some(CodingProcess::Lossless),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -47,7 +47,7 @@ pub enum EntropyCoding {
     /// Huffman coding.
     Huffman,
     /// Arithmetic coding.
-    Arithmetic
+    Arithmetic,
 }
 
 impl fmt::Display for EntropyCoding {
@@ -64,7 +64,7 @@ impl EntropyCoding {
         match marker {
             0xc0 | 0xc1 | 0xc2 | 0xc3 | 0xc5 | 0xc6 | 0xc7 => Some(EntropyCoding::Huffman),
             0xc9 | 0xca | 0xcb | 0xcd | 0xce | 0xcf => Some(EntropyCoding::Arithmetic),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -90,14 +90,18 @@ pub struct Metadata {
 }
 
 fn find_marker<R: ?Sized, F>(r: &mut R, name: &str, mut matcher: F) -> Result<u8>
-    where R: BufRead, F: FnMut(u8) -> bool
+where
+    R: BufRead,
+    F: FnMut(u8) -> bool,
 {
     loop {
-        if try!(r.skip_until(0xff)) == 0 {
+        if r.skip_until(0xff)? == 0 {
             return Err(unexpected_eof!("when searching for {} marker", name));
         }
         let marker_type = try_if_eof!(r.read_u8(), "when reading marker type");
-        if marker_type == 0 { continue; }  // skip "stuffed" byte
+        if marker_type == 0 {
+            continue;
+        } // skip "stuffed" byte
 
         if matcher(marker_type) {
             return Ok(marker_type);
@@ -108,22 +112,27 @@ fn find_marker<R: ?Sized, F>(r: &mut R, name: &str, mut matcher: F) -> Result<u8
 impl LoadableMetadata for Metadata {
     fn load<R: ?Sized + BufRead>(r: &mut R) -> Result<Metadata> {
         // read SOI marker, it must be present in all JPEG files
-        try!(find_marker(r, "SOI", |m| m == 0xd8));
+        find_marker(r, "SOI", |m| m == 0xd8)?;
 
         // XXX: do we need to check for APP0 JFIF marker? This doesn't seem strictly necessary
         // XXX: to me, and it seems that other interchange formats are also possible.
 
         // read SOF marker, it must also be present in all JPEG files
-        let marker = try!(find_marker(r, "SOF", is_sof_marker));
+        let marker = find_marker(r, "SOF", is_sof_marker)?;
 
         // read and check SOF marker length
-        let size = try_if_eof!(r.read_u16::<BigEndian>(), "when reading SOF marker payload size");
-        if size <= 8 {  // 2 bytes for the length itself, 6 bytes is the minimum header size
+        let size = try_if_eof!(
+            r.read_u16::<BigEndian>(),
+            "when reading SOF marker payload size"
+        );
+        if size <= 8 {
+            // 2 bytes for the length itself, 6 bytes is the minimum header size
             return Err(invalid_format!("invalid JPEG frame header size: {}", size));
         }
 
         // read sample precision
-        let sample_precision = try_if_eof!(r.read_u8(), "when reading sample precision of the frame");
+        let sample_precision =
+            try_if_eof!(r.read_u8(), "when reading sample precision of the frame");
 
         // read height and width
         let h = try_if_eof!(r.read_u16::<BigEndian>(), "when reading JPEG frame height");
@@ -136,7 +145,7 @@ impl LoadableMetadata for Metadata {
         let differential = match marker {
             0xc0 | 0xc1 | 0xc2 | 0xc3 | 0xc9 | 0xca | 0xcb => false,
             0xc5 | 0xc6 | 0xc7 | 0xcd | 0xce | 0xcf => true,
-            _ => unreachable!(),  // because we are inside a valid SOF marker
+            _ => unreachable!(), // because we are inside a valid SOF marker
         };
 
         // unwrap can't fail, we're inside a valid SOF marker
@@ -157,8 +166,8 @@ impl LoadableMetadata for Metadata {
 fn is_sof_marker(value: u8) -> bool {
     match value {
         // no 0xC4, 0xC8 and 0xCC, they are not SOF markers
-        0xc0 | 0xc1 | 0xc2 | 0xc3 | 0xc5 | 0xc6 | 0xc7 | 0xc9 |
-        0xca | 0xcb | 0xcd | 0xce | 0xcf => true,
-        _ => false
+        0xc0 | 0xc1 | 0xc2 | 0xc3 | 0xc5 | 0xc6 | 0xc7 | 0xc9 | 0xca | 0xcb | 0xcd | 0xce
+        | 0xcf => true,
+        _ => false,
     }
 }

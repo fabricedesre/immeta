@@ -1,12 +1,12 @@
-use std::io::{BufRead, Cursor, Seek, SeekFrom, BufReader};
 use std::fs::File;
+use std::io::{BufRead, BufReader, Cursor, Seek, SeekFrom};
 use std::path::Path;
 use std::result;
 
-use types::{Result, Dimensions};
-use traits::LoadableMetadata;
-use formats::{jpeg, png, gif, webp};
-use generic::markers::MetadataMarker;
+use crate::formats::{gif, jpeg, png, webp};
+use crate::generic::markers::MetadataMarker;
+use crate::traits::LoadableMetadata;
+use crate::types::{Dimensions, Result};
 
 /// Contains metadata marker types.
 ///
@@ -41,9 +41,9 @@ pub mod markers {
     use std::path::Path;
     use std::result;
 
-    use generic::GenericMetadata;
-    use types::Result;
-    use formats::{jpeg, png, gif, webp};
+    use crate::formats::{gif, jpeg, png, webp};
+    use crate::generic::GenericMetadata;
+    use crate::types::Result;
 
     /// A marker trait for a specific metadata type.
     pub trait MetadataMarker {
@@ -65,7 +65,7 @@ pub mod markers {
         /// let concrete: Result<jpeg::Metadata, GenericMetadata> = generic.into::<Jpeg>();
         /// assert!(concrete.is_ok());
         /// ```
-        /// 
+        ///
         /// ```no_run
         /// use immeta::markers::Jpeg;
         /// use immeta::formats::jpeg;
@@ -161,7 +161,7 @@ pub mod markers {
         /// method instead of calling `load_from_buf()` on the metadata type directly.
         ///
         /// # Examples
-        /// 
+        ///
         /// ```no_run
         /// use immeta::markers::{MetadataMarker, Jpeg};
         ///
@@ -177,12 +177,12 @@ pub mod markers {
 
             impl MetadataMarker for $name {
                 type Metadata = $mtpe;
-        
+
                 #[inline]
                 fn from_generic(gmd: GenericMetadata) -> result::Result<$mtpe, GenericMetadata> {
                     match gmd {
                         $crate::generic::GenericMetadata::$gvar(md) => Ok(md),
-                        gmd => Err(gmd)
+                        gmd => Err(gmd),
                     }
                 }
 
@@ -190,7 +190,7 @@ pub mod markers {
                 fn from_generic_ref(gmd: &GenericMetadata) -> Option<&$mtpe> {
                     match *gmd {
                         $crate::generic::GenericMetadata::$gvar(ref md) => Some(md),
-                        _ => None
+                        _ => None,
                     }
                 }
 
@@ -214,7 +214,7 @@ pub mod markers {
                     $crate::traits::LoadableMetadata::load_from_buf(b)
                 }
             }
-        }
+        };
     }
 
     impl_metadata_marker! { Jpeg, Jpeg, jpeg::Metadata }
@@ -231,7 +231,7 @@ pub enum GenericMetadata {
     Png(png::Metadata),
     Gif(gif::Metadata),
     Jpeg(jpeg::Metadata),
-    Webp(webp::Metadata)
+    Webp(webp::Metadata),
 }
 
 impl GenericMetadata {
@@ -241,7 +241,7 @@ impl GenericMetadata {
             GenericMetadata::Png(ref md) => md.dimensions,
             GenericMetadata::Gif(ref md) => md.dimensions,
             GenericMetadata::Jpeg(ref md) => md.dimensions,
-            GenericMetadata::Webp(ref md) => md.dimensions()
+            GenericMetadata::Webp(ref md) => md.dimensions(),
         }
     }
 
@@ -251,7 +251,7 @@ impl GenericMetadata {
             GenericMetadata::Png(_) => "image/png",
             GenericMetadata::Gif(_) => "image/gif",
             GenericMetadata::Jpeg(_) => "image/jpeg",
-            GenericMetadata::Webp(_) => "image/webp"
+            GenericMetadata::Webp(_) => "image/webp",
         }
     }
 
@@ -282,25 +282,25 @@ impl GenericMetadata {
 /// naturally not seekable, so one would need to buffer the data from them first.
 pub fn load<R: ?Sized + BufRead + Seek>(r: &mut R) -> Result<GenericMetadata> {
     // try png
-    try!(r.seek(SeekFrom::Start(0)));
+    r.seek(SeekFrom::Start(0))?;
     if let Ok(md) = png::Metadata::load_from_seek(r) {
         return Ok(GenericMetadata::Png(md));
     }
 
     // try gif
-    try!(r.seek(SeekFrom::Start(0)));
+    r.seek(SeekFrom::Start(0))?;
     if let Ok(md) = gif::Metadata::load_from_seek(r) {
         return Ok(GenericMetadata::Gif(md));
     }
 
     // try webp
-    try!(r.seek(SeekFrom::Start(0)));
+    r.seek(SeekFrom::Start(0))?;
     if let Ok(md) = webp::Metadata::load_from_seek(r) {
         return Ok(GenericMetadata::Webp(md));
     }
 
     // try jpeg
-    try!(r.seek(SeekFrom::Start(0)));
+    r.seek(SeekFrom::Start(0))?;
     if let Ok(md) = jpeg::Metadata::load_from_seek(r) {
         return Ok(GenericMetadata::Jpeg(md));
     }
@@ -309,11 +309,11 @@ pub fn load<R: ?Sized + BufRead + Seek>(r: &mut R) -> Result<GenericMetadata> {
 }
 
 /// Attempts to load metadata for an image contained in a file identified by the provided path.
-/// 
+///
 /// This method delegates to `load()` method and, consequently, also determines the image format
 /// automatically.
 pub fn load_from_file<P: AsRef<Path>>(p: P) -> Result<GenericMetadata> {
-    let mut f = BufReader::new(try!(File::open(p)));
+    let mut f = BufReader::new(File::open(p)?);
     load(&mut f)
 }
 

@@ -1,24 +1,22 @@
+use std::cell::{Cell, RefCell};
 use std::io::{self, Read, Seek, SeekFrom};
-use std::cell::{RefCell, Cell};
 use std::marker::PhantomData;
 
-use types::Result;
-use utils::{ByteOrder, ByteOrderReadExt};
+use crate::types::Result;
+use crate::utils::{ByteOrder, ByteOrderReadExt};
 
 /// A TIFF document reader.
 ///
 /// This structure wraps a `Read` and `Seek` implementation and allows one to read a TIFF
 /// document from it.
 pub struct TiffReader<R: Read + Seek> {
-    source: R
+    source: R,
 }
 
 impl<R: Read + Seek> TiffReader<R> {
     /// Wraps the provider `Read + Seek` implementation and returns a new TIFF reader.
     pub fn new(source: R) -> TiffReader<R> {
-        TiffReader {
-            source: source
-        }
+        TiffReader { source: source }
     }
 
     /// Returns an iterator over IFDs in the TIFF document.
@@ -40,12 +38,16 @@ impl<R: Read + Seek> TiffReader<R> {
     /// ```
     pub fn ifds(mut self) -> Result<LazyIfds<R>> {
         let mut bom = [0u8; 2];
-        try_if_eof!(std, self.source.read_exact(&mut bom), "while reading byte order mark");
+        try_if_eof!(
+            std,
+            self.source.read_exact(&mut bom),
+            "while reading byte order mark"
+        );
 
         let byte_order = match &bom {
             b"II" => ByteOrder::Little,
             b"MM" => ByteOrder::Big,
-            _ => return Err(invalid_format!("invalid TIFF BOM: {:?}", bom))
+            _ => return Err(invalid_format!("invalid TIFF BOM: {:?}", bom)),
         };
 
         let magic = try_if_eof!(
@@ -110,15 +112,20 @@ impl<'a, R: Read + Seek> Ifds<'a, R> {
         }
 
         // seek to the beginning of the next IFD
-        try_if_eof!(std,
-            self.0.source.borrow_mut().seek(SeekFrom::Start(next_ifd_offset as u64)),
+        try_if_eof!(
+            std,
+            self.0
+                .source
+                .borrow_mut()
+                .seek(SeekFrom::Start(next_ifd_offset as u64)),
             "when seeking to the beginning of the next IFD"
         );
         let current_ifd_offset = next_ifd_offset;
 
         // read the length of this IFD
         let current_ifd_size = try_if_eof!(
-            self.0.source.borrow_mut().read_u16(self.0.byte_order), "when reading number of entries in an IFD"
+            self.0.source.borrow_mut().read_u16(self.0.byte_order),
+            "when reading number of entries in an IFD"
         );
         // it is an error for an IFD to be empty
         if current_ifd_size == 0 {
@@ -127,14 +134,19 @@ impl<'a, R: Read + Seek> Ifds<'a, R> {
 
         // compute the offset of the next IFD offset and seek to it
         let next_ifd_offset_offset = current_ifd_offset + 2 + current_ifd_size as u64 * 12;
-        try_if_eof!(std,
-            self.0.source.borrow_mut().seek(SeekFrom::Start(next_ifd_offset_offset as u64)),
+        try_if_eof!(
+            std,
+            self.0
+                .source
+                .borrow_mut()
+                .seek(SeekFrom::Start(next_ifd_offset_offset as u64)),
             "when seeking to the next IFD offset"
         );
 
         // read and update the next IFD offset for further calls to `next()`
         self.0.next_ifd_offset.set(try_if_eof!(
-            self.0.source.borrow_mut().read_u32(self.0.byte_order), "when reading the next IFD offset"
+            self.0.source.borrow_mut().read_u32(self.0.byte_order),
+            "when reading the next IFD offset"
         ) as u64);
 
         Ok(Some(Ifd {
@@ -170,7 +182,7 @@ impl<'a, R: Read + Seek + 'a> Iterator for Ifd<'a, R> {
 
 impl<'a, R: Read + Seek + 'a> Ifd<'a, R> {
     #[inline]
-    fn len(&self) -> u16 {
+    pub fn len(&self) -> u16 {
         self.total_entries
     }
 
@@ -178,31 +190,40 @@ impl<'a, R: Read + Seek + 'a> Ifd<'a, R> {
         let mut source = self.ifds.source.borrow_mut();
 
         // seek to the beginning of the next entry (ifd offset + 2 + next_entry * 12)
-        try!(source.seek(SeekFrom::Start(self.ifd_offset + 2 + self.current_entry as u64 * 12)));
+        source.seek(SeekFrom::Start(
+            self.ifd_offset + 2 + self.current_entry as u64 * 12,
+        ))?;
 
         // read the tag
         let tag = try_if_eof!(
-            source.read_u16(self.ifds.byte_order), "when reading TIFF IFD entry tag"
+            source.read_u16(self.ifds.byte_order),
+            "when reading TIFF IFD entry tag"
         );
 
         // read the entry type
         let entry_type = try_if_eof!(
-            source.read_u16(self.ifds.byte_order), "when reading TIFF IFD entry type"
+            source.read_u16(self.ifds.byte_order),
+            "when reading TIFF IFD entry type"
         );
 
         // read the count
         let count = try_if_eof!(
-            source.read_u32(self.ifds.byte_order), "when reading TIFF IFD entry data count"
+            source.read_u32(self.ifds.byte_order),
+            "when reading TIFF IFD entry data count"
         );
 
         // read the offset/value
         let offset = try_if_eof!(
-            source.read_u32(self.ifds.byte_order), "when reading TIFF IFD entry data offset"
+            source.read_u32(self.ifds.byte_order),
+            "when reading TIFF IFD entry data offset"
         );
 
         println!("---------------------------------");
         println!("Entry tag:                   {:04X}, {}", tag, tag);
-        println!("Entry type:                  {:04X}, {}", entry_type, entry_type);
+        println!(
+            "Entry type:                  {:04X}, {}",
+            entry_type, entry_type
+        );
         println!("Entry items count:       {:08X}, {}", count, count);
         println!("Entry data offset/value: {:08X}, {}", offset, offset);
         println!("---------------------------------");
@@ -240,19 +261,19 @@ pub enum EntryType {
 impl From<u16> for EntryType {
     fn from(n: u16) -> EntryType {
         match n {
-            1  => EntryType::Byte,
-            2  => EntryType::Ascii,
-            3  => EntryType::Short,
-            4  => EntryType::Long,
-            5  => EntryType::Rational,
-            6  => EntryType::SignedByte,
-            7  => EntryType::Undefined,
-            8  => EntryType::SignedShort,
-            9  => EntryType::SignedLong,
+            1 => EntryType::Byte,
+            2 => EntryType::Ascii,
+            3 => EntryType::Short,
+            4 => EntryType::Long,
+            5 => EntryType::Rational,
+            6 => EntryType::SignedByte,
+            7 => EntryType::Undefined,
+            8 => EntryType::SignedShort,
+            9 => EntryType::SignedLong,
             10 => EntryType::SignedRational,
             11 => EntryType::Float,
             12 => EntryType::Double,
-            n  => EntryType::Unknown(n),
+            n => EntryType::Unknown(n),
         }
     }
 }
@@ -260,19 +281,19 @@ impl From<u16> for EntryType {
 impl EntryType {
     fn size(self) -> Option<u8> {
         match self {
-            EntryType::Byte           => Some(1),
-            EntryType::Ascii          => Some(1),
-            EntryType::Short          => Some(2),
-            EntryType::Long           => Some(4),
-            EntryType::Rational       => Some(8),
-            EntryType::SignedByte     => Some(1),
-            EntryType::Undefined      => Some(1),
-            EntryType::SignedShort    => Some(2),
-            EntryType::SignedLong     => Some(4),
+            EntryType::Byte => Some(1),
+            EntryType::Ascii => Some(1),
+            EntryType::Short => Some(2),
+            EntryType::Long => Some(4),
+            EntryType::Rational => Some(8),
+            EntryType::SignedByte => Some(1),
+            EntryType::Undefined => Some(1),
+            EntryType::SignedShort => Some(2),
+            EntryType::SignedLong => Some(4),
             EntryType::SignedRational => Some(8),
-            EntryType::Float          => Some(4),
-            EntryType::Double         => Some(8),
-            EntryType::Unknown(_)     => None,
+            EntryType::Float => Some(4),
+            EntryType::Double => Some(8),
+            EntryType::Unknown(_) => None,
         }
     }
 }
@@ -365,27 +386,35 @@ impl<'a, R: Read + Seek + 'a> Entry<'a, R> {
                     Some(self.values::<T>().unwrap().collect())
                 // othewise the data is stored at that offset, load it all at once
                 } else {
-                    match self.ifds.source.borrow_mut().seek(SeekFrom::Start(self.offset as u64))
-                        .map_err(if_eof!(std, "when seeking to the beginning of IFD entry data"))
-                    {
+                    match self
+                        .ifds
+                        .source
+                        .borrow_mut()
+                        .seek(SeekFrom::Start(self.offset as u64))
+                        .map_err(if_eof!(
+                            std,
+                            "when seeking to the beginning of IFD entry data"
+                        )) {
                         Ok(_) => {}
-                        Err(e) => return Some(Err(e))
+                        Err(e) => return Some(Err(e)),
                     }
 
                     let mut result = Vec::new();
-                    match T::read_many_from(&mut *self.ifds.source.borrow_mut(),
-                                            self.ifds.byte_order, self.count, &mut result)
-                        .map_err(if_eof!("when reading TIFF IFD entry values"))
+                    match T::read_many_from(
+                        &mut *self.ifds.source.borrow_mut(),
+                        self.ifds.byte_order,
+                        self.count,
+                        &mut result,
+                    )
+                    .map_err(if_eof!("when reading TIFF IFD entry values"))
                     {
                         Ok(_) => Some(Ok(result)),
-                        Err(e) => Some(Err(e))
+                        Err(e) => Some(Err(e)),
                     }
                 }
-
             } else {
                 None
             }
-
         } else {
             None
         }
@@ -410,13 +439,23 @@ pub trait EntryTypeRepr {
     ///
     /// `n` values will be are stored in `target`, or an error will be returned. `target` vector
     /// may be modified even if this method returns an error.
-    fn read_many_from<R: Read>(source: &mut R, byte_order: ByteOrder, n: u32, target: &mut Vec<Self::Repr>) -> io::Result<()>;
+    fn read_many_from<R: Read>(
+        source: &mut R,
+        byte_order: ByteOrder,
+        n: u32,
+        target: &mut Vec<Self::Repr>,
+    ) -> io::Result<()>;
 
     /// Reads the `n`th represented value inside `source`.
     ///
     /// If the value can be read successfully (`n` < `count`, the represented type is smaller
     /// than or equal to u32, etc.), returns `Some(value)`, otherwise returns `None`.
-    fn read_from_u32(source: [u8; 4], byte_order: ByteOrder, n: usize, count: usize) -> Option<Self::Repr>;
+    fn read_from_u32(
+        source: [u8; 4],
+        byte_order: ByteOrder,
+        n: usize,
+        count: usize,
+    ) -> Option<Self::Repr>;
 }
 
 /// Contains representation types for all of defined TIFF entry types.
@@ -424,18 +463,18 @@ pub mod entry_types {
     use std::io::{self, Read};
     use std::str;
 
-    use byteorder;
     use arrayvec::ArrayVec;
+    use byteorder;
 
     use super::{EntryType, EntryTypeRepr};
-    use utils::{ByteOrder, ByteOrderReadExt};
+    use crate::utils::{ByteOrder, ByteOrderReadExt};
 
     macro_rules! gen_entry_types {
         (
             $(
                 $tpe:ident, $repr:ty,
-                |$source:pat, $byte_order:pat| $read:expr,
-                |$u32_source:pat, $u32_byte_order:pat, $n:pat, $count:pat| $u32_read:expr
+                |$source:pat, $byte_order:pat_param| $read:expr,
+                |$u32_source:pat, $u32_byte_order:pat, $n:pat, $count:pat_param| $u32_read:expr
             );+
         ) => {
             $(
@@ -462,7 +501,7 @@ pub mod entry_types {
                         let max_bytes = n * item_size as u32;
                         let mut bytes_read = 0;
                         while bytes_read < max_bytes {
-                            let (c, v) = try!(Self::read_from(source, byte_order));
+                            let (c, v) = Self::read_from(source, byte_order)?;
                             bytes_read += c;
                             target.push(v);
                         }
@@ -485,7 +524,7 @@ pub mod entry_types {
             |source, _| {
                 let mut s = String::new();
                 loop {
-                    let b = try!(byteorder::ReadBytesExt::read_u8(source));
+                    let b = byteorder::ReadBytesExt::read_u8(source)?;
                     if b == 0 { break; }
                     s.push(b as char);
                 }
@@ -573,7 +612,7 @@ impl<'a, T: EntryTypeRepr, R: Read + Seek + 'a> Iterator for EntryValues<'a, T, 
     fn next(&mut self) -> Option<Result<T::Repr>> {
         match self.read_value() {
             Ok(result) => result.map(Ok),
-            Err(e) => Some(Err(e))
+            Err(e) => Some(Err(e)),
         }
     }
 }
@@ -601,7 +640,12 @@ impl<T: EntryTypeRepr> EmbeddedValues<T> {
         if self.current >= self.count {
             None
         } else {
-            let result = T::read_from_u32(self.data, self.byte_order, self.current as usize, self.count as usize);
+            let result = T::read_from_u32(
+                self.data,
+                self.byte_order,
+                self.current as usize,
+                self.count as usize,
+            );
             self.current += 1;
             result
         }
@@ -623,7 +667,10 @@ impl<'a, T: EntryTypeRepr, R: Read + Seek + 'a> ReferencedValues<'a, T, R> {
             return Ok(None);
         }
 
-        try!(self.ifds.source.borrow_mut().seek(SeekFrom::Start(self.next_offset as u64)));
+        self.ifds
+            .source
+            .borrow_mut()
+            .seek(SeekFrom::Start(self.next_offset as u64))?;
 
         let (bytes_read, value) = try_if_eof!(
             T::read_from(&mut *self.ifds.source.borrow_mut(), self.ifds.byte_order),
@@ -638,11 +685,11 @@ impl<'a, T: EntryTypeRepr, R: Read + Seek + 'a> ReferencedValues<'a, T, R> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Write, Cursor};
+    use std::io::{Cursor, Write};
 
-    use byteorder::{self, ByteOrder, BigEndian, LittleEndian};
+    use byteorder::{self, BigEndian, ByteOrder, LittleEndian};
 
-    use super::{TiffReader, EntryType, entry_types};
+    use crate::common::tiff::{entry_types, EntryType, TiffReader};
 
     trait Writable {
         fn write_to<W: Write + ?Sized, T: ByteOrder>(&self, target: &mut W);
@@ -826,7 +873,10 @@ mod tests {
                         );
                         assert_items!(
                             e.values::<entry_types::Byte>().unwrap(),
-                            b'a', b'b', b'c', b'd'
+                            b'a',
+                            b'b',
+                            b'c',
+                            b'd'
                         );
                     }
                     1 => {
@@ -851,10 +901,7 @@ mod tests {
                             e.all_values::<entry_types::Short>().unwrap().unwrap(),
                             vec![23, 34]
                         );
-                        assert_items!(
-                            e.values::<entry_types::Short>().unwrap(),
-                            23, 34
-                        );
+                        assert_items!(e.values::<entry_types::Short>().unwrap(), 23, 34);
                     }
                     3 => {
                         assert_eq!(e.tag(), 16);
@@ -864,10 +911,7 @@ mod tests {
                             e.all_values::<entry_types::Long>().unwrap().unwrap(),
                             vec![123, 12, 5492957]
                         );
-                        assert_items!(
-                            e.values::<entry_types::Long>().unwrap(),
-                            123, 12, 5492957
-                        );
+                        assert_items!(e.values::<entry_types::Long>().unwrap(), 123, 12, 5492957);
                     }
                     4 => {
                         assert_eq!(e.tag(), 23);
@@ -879,7 +923,8 @@ mod tests {
                         );
                         assert_items!(
                             e.values::<entry_types::Rational>().unwrap(),
-                            (22, 7), (355, 113)
+                            (22, 7),
+                            (355, 113)
                         )
                     }
                     5 => {
@@ -892,7 +937,14 @@ mod tests {
                         );
                         assert_items!(
                             e.values::<entry_types::SignedByte>().unwrap(),
-                            -3, -2, -1, 0, 1, 2, 3, 4
+                            -3,
+                            -2,
+                            -1,
+                            0,
+                            1,
+                            2,
+                            3,
+                            4
                         );
                     }
                     6 => {
@@ -906,8 +958,26 @@ mod tests {
                         assert_items!(
                             e.values::<entry_types::Undefined>().unwrap(),
                             // UTF-8 bytes
-                            208, 191, 209, 128, 208, 184, 208, 178, 208, 181, 209, 130, 32,
-                            208, 188, 208, 184, 209, 128, 33
+                            208,
+                            191,
+                            209,
+                            128,
+                            208,
+                            184,
+                            208,
+                            178,
+                            208,
+                            181,
+                            209,
+                            130,
+                            32,
+                            208,
+                            188,
+                            208,
+                            184,
+                            209,
+                            128,
+                            33
                         );
                     }
                     7 => {
@@ -918,10 +988,7 @@ mod tests {
                             e.all_values::<entry_types::SignedShort>().unwrap().unwrap(),
                             vec![-8, 0, 128]
                         );
-                        assert_items!(
-                            e.values::<entry_types::SignedShort>().unwrap(),
-                            -8, 0, 128
-                        );
+                        assert_items!(e.values::<entry_types::SignedShort>().unwrap(), -8, 0, 128);
                     }
                     8 => {
                         assert_eq!(e.tag(), 15);
@@ -931,17 +998,16 @@ mod tests {
                             e.all_values::<entry_types::SignedLong>().unwrap().unwrap(),
                             vec![-3724]
                         );
-                        assert_items!(
-                            e.values::<entry_types::SignedLong>().unwrap(),
-                            -3724
-                        );
+                        assert_items!(e.values::<entry_types::SignedLong>().unwrap(), -3724);
                     }
                     9 => {
                         assert_eq!(e.tag(), 16);
                         assert_eq!(e.entry_type(), EntryType::SignedRational);
                         assert_eq!(e.count(), 1);
                         assert_eq!(
-                            e.all_values::<entry_types::SignedRational>().unwrap().unwrap(),
+                            e.all_values::<entry_types::SignedRational>()
+                                .unwrap()
+                                .unwrap(),
                             vec![(-333, -106)]
                         );
                         assert_items!(
@@ -957,10 +1023,7 @@ mod tests {
                             e.all_values::<entry_types::Float>().unwrap().unwrap(),
                             vec![0.123]
                         );
-                        assert_items!(
-                            e.values::<entry_types::Float>().unwrap(),
-                            0.123
-                        );
+                        assert_items!(e.values::<entry_types::Float>().unwrap(), 0.123);
                     }
                     11 => {
                         assert_eq!(e.tag(), 42);
@@ -970,10 +1033,7 @@ mod tests {
                             e.all_values::<entry_types::Double>().unwrap().unwrap(),
                             vec![3.14]
                         );
-                        assert_items!(
-                            e.values::<entry_types::Double>().unwrap(),
-                            3.14
-                        );
+                        assert_items!(e.values::<entry_types::Double>().unwrap(), 3.14);
                     }
                     12 => {
                         assert_eq!(e.tag(), 4);
@@ -990,42 +1050,42 @@ mod tests {
 
     //#[test]
     //fn test_two_ifds() {
-        //let data = build! { LittleEndian,
-            //b"II", 42u16, 8u32,  // 1st IFD starts from 8th offset
-            
-            //// first IFD has 2 entries
-            //2u16,
+    //let data = build! { LittleEndian,
+    //b"II", 42u16, 8u32,  // 1st IFD starts from 8th offset
 
-            //// first entry, Short
-            //4u16, 3u16, 2u32, 23u16, 45u16,
+    //// first IFD has 2 entries
+    //2u16,
 
-            //// second entry, SignedRational
-            //8u16, 10u16, 2u32, ???u32,
+    //// first entry, Short
+    //4u16, 3u16, 2u32, 23u16, 45u16,
 
-            //// offset of the next IFD
-            //???u32,
+    //// second entry, SignedRational
+    //8u16, 10u16, 2u32, ???u32,
 
-            //// @???, SignedRational x2, 16 bytes
-            //-3i32, -2i32, -5i32, -3i32,
+    //// offset of the next IFD
+    //???u32,
 
-            //// second IFD has 3 entries
-            //3u16,
+    //// @???, SignedRational x2, 16 bytes
+    //-3i32, -2i32, -5i32, -3i32,
 
-            //// first entry, Ascii
-            //5u16, 2u16, 4u32, b"abc\0",
+    //// second IFD has 3 entries
+    //3u16,
 
-            //// second entry, Float
-            //6u16, 11u16, 1u32, 0.456f32,
+    //// first entry, Ascii
+    //5u16, 2u16, 4u32, b"abc\0",
 
-            //// third entry, Long
-            //7u16, 4u16, 3u32, ???u32,
+    //// second entry, Float
+    //6u16, 11u16, 1u32, 0.456f32,
 
-            //// next IFD offset, zero means no more IFDs
-            //0u32,
+    //// third entry, Long
+    //7u16, 4u16, 3u32, ???u32,
 
-            //// @???, Long x3, 12 bytes
-            //12u32, 34u32, 45u32
-        //};
+    //// next IFD offset, zero means no more IFDs
+    //0u32,
+
+    //// @???, Long x3, 12 bytes
+    //12u32, 34u32, 45u32
+    //};
 
     //}
 
