@@ -13,4 +13,4 @@ edition = "2021"
 [dependencies]
 byteorder = "1.4"
 num-traits = "0.2"
-arrayvec = "0.5"
+arrayvec = "0.7"

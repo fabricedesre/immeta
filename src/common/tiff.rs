@@ -552,7 +552,7 @@ pub mod entry_types {
                         i += 1;
                     }
                 }
-                let mut substrings = ArrayVec::<[_; 4]>::new();
+                let mut substrings = ArrayVec::<_, 4>::new();
                 find_substrings(&bs[..count as usize], &mut substrings);
                 substrings.get(n as usize)
                     .map(|&(s, e)| unsafe { str::from_utf8_unchecked(&bs[s..e]).to_owned() })
