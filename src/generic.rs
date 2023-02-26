@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader, Cursor, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Cursor, Seek};
 use std::path::Path;
 use std::result;
 
@@ -282,25 +282,25 @@ impl GenericMetadata {
 /// naturally not seekable, so one would need to buffer the data from them first.
 pub fn load<R: ?Sized + BufRead + Seek>(r: &mut R) -> Result<GenericMetadata> {
     // try png
-    r.seek(SeekFrom::Start(0))?;
+    r.rewind()?;
     if let Ok(md) = png::Metadata::load_from_seek(r) {
         return Ok(GenericMetadata::Png(md));
     }
 
     // try gif
-    r.seek(SeekFrom::Start(0))?;
+    r.rewind()?;
     if let Ok(md) = gif::Metadata::load_from_seek(r) {
         return Ok(GenericMetadata::Gif(md));
     }
 
     // try webp
-    r.seek(SeekFrom::Start(0))?;
+    r.rewind()?;
     if let Ok(md) = webp::Metadata::load_from_seek(r) {
         return Ok(GenericMetadata::Webp(md));
     }
 
     // try jpeg
-    r.seek(SeekFrom::Start(0))?;
+    r.rewind()?;
     if let Ok(md) = jpeg::Metadata::load_from_seek(r) {
         return Ok(GenericMetadata::Jpeg(md));
     }

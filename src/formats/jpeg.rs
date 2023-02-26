@@ -154,11 +154,11 @@ impl LoadableMetadata for Metadata {
 
         Ok(Metadata {
             dimensions: (w, h).into(),
-            sample_precision: sample_precision,
-            coding_process: coding_process,
-            entropy_coding: entropy_coding,
-            baseline: baseline,
-            differential: differential,
+            sample_precision,
+            coding_process,
+            entropy_coding,
+            baseline,
+            differential,
         })
     }
 }

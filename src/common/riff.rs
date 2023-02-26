@@ -40,7 +40,7 @@ pub struct RiffReader<R: Read> {
 
 impl<R: Read> RiffReader<R> {
     pub fn new(source: R) -> RiffReader<R> {
-        RiffReader { source: source }
+        RiffReader { source }
     }
 
     pub fn root(&mut self) -> Result<RiffListChunk> {
@@ -53,16 +53,16 @@ impl<R: Read> RiffReader<R> {
             return Err(invalid_format!("RIFF file header is invalid"));
         }
 
-        Ok(RiffChunk {
+        RiffChunk {
             data: Counter {
                 delegate: (&mut self.source as &mut dyn Read).take(len as u64),
                 counter: None,
             },
             tainted: false,
             chunk_id: id,
-            len: len,
+            len,
         }
-        .into_list_unchecked()?)
+        .into_list_unchecked()
     }
 }
 
@@ -108,11 +108,7 @@ impl<'a> RiffChunk<'a> {
 
     #[inline]
     pub fn can_have_subchunks(&self) -> bool {
-        !self.tainted
-            && match &self.chunk_id.0 {
-                b"RIFF" | b"LIST" => true,
-                _ => false,
-            }
+        !self.tainted && matches!(&self.chunk_id.0, b"RIFF" | b"LIST")
     }
 
     #[inline]
@@ -184,7 +180,7 @@ impl<'a> RiffListChunk<'a> {
         let (id, len) = match read_id_and_len(&mut self.data) {
             Ok(Some(t)) => t,
             Ok(None) => return None,
-            Err(e) => return Some(Err(e.into())),
+            Err(e) => return Some(Err(e)),
         };
 
         self.cur_chunk_read = 0;
@@ -192,7 +188,7 @@ impl<'a> RiffListChunk<'a> {
 
         Some(Ok(RiffChunk {
             chunk_id: id,
-            len: len,
+            len,
             tainted: false,
             data: Counter {
                 delegate: (&mut self.data as &mut dyn Read).take(len as u64),

@@ -119,7 +119,7 @@ impl ImageDescriptor {
         let local_color_table = (0b10000000 & packed_flags) > 0;
         let interlace = (0b01000000 & packed_flags) > 0;
         let local_color_table_sorted = (0b00100000 & packed_flags) > 0;
-        let local_color_table_size_p = (0b00000111 & packed_flags) >> 0;
+        let local_color_table_size_p = 0b00000111 & packed_flags;
 
         let local_color_table_size = if local_color_table {
             1u16 << (local_color_table_size_p + 1)
@@ -143,14 +143,14 @@ impl ImageDescriptor {
             index
         );
         skip_blocks(r, || {
-            format!("when reading image data of image block {}", index).into()
+            format!("when reading image data of image block {index}").into()
         })?;
 
         Ok(ImageDescriptor {
-            left: left,
-            top: top,
-            width: width,
-            height: height,
+            left,
+            top,
+            width,
+            height,
 
             local_color_table: if local_color_table {
                 Some(ColorTable {
@@ -161,7 +161,7 @@ impl ImageDescriptor {
                 None
             },
 
-            interlace: interlace,
+            interlace,
         })
     }
 }
@@ -206,7 +206,7 @@ impl GraphicControlExtension {
     }
 
     fn load<R: ?Sized + BufRead>(index: usize, r: &mut R) -> Result<GraphicControlExtension> {
-        const NAME: &'static str = "graphics control extension block";
+        const NAME: &str = "graphics control extension block";
 
         let block_size = try_if_eof!(r.read_u8(), "when reading block size of {} {}", NAME, index);
         if block_size != 0x04 {
@@ -238,7 +238,7 @@ impl GraphicControlExtension {
         );
 
         skip_blocks(r, || {
-            format!("when reading block terminator of {} {}", NAME, index).into()
+            format!("when reading block terminator of {NAME} {index}").into()
         })?;
 
         Ok(GraphicControlExtension {
@@ -248,13 +248,13 @@ impl GraphicControlExtension {
                 index,
                 disposal_method
             ))?,
-            user_input: user_input,
+            user_input,
             transparent_color_index: if transparent_color {
                 Some(transparent_color_index)
             } else {
                 None
             },
-            delay_time: delay_time,
+            delay_time,
         })
     }
 }
@@ -321,7 +321,7 @@ pub struct PlainTextExtension {
 
 impl PlainTextExtension {
     fn load<R: ?Sized + BufRead>(index: usize, r: &mut R) -> Result<PlainTextExtension> {
-        const NAME: &'static str = "plain text extension block";
+        const NAME: &str = "plain text extension block";
 
         let block_size = try_if_eof!(r.read_u8(), "when reading block size of {} {}", NAME, index);
         if block_size != 0x0C {
@@ -385,20 +385,20 @@ impl PlainTextExtension {
         );
 
         skip_blocks(r, || {
-            format!("when reading text data of {} {}", NAME, index).into()
+            format!("when reading text data of {NAME} {index}").into()
         })?;
 
         Ok(PlainTextExtension {
-            left: left,
-            top: top,
-            width: width,
-            height: height,
+            left,
+            top,
+            width,
+            height,
 
-            cell_width: cell_width,
-            cell_height: cell_height,
+            cell_width,
+            cell_height,
 
-            foreground_color_index: foreground_color_index,
-            background_color_index: background_color_index,
+            foreground_color_index,
+            background_color_index,
         })
     }
 }
@@ -435,7 +435,7 @@ impl ApplicationExtension {
     }
 
     fn load<R: ?Sized + BufRead>(index: usize, r: &mut R) -> Result<ApplicationExtension> {
-        const NAME: &'static str = "application extension block";
+        const NAME: &str = "application extension block";
 
         let block_size = try_if_eof!(r.read_u8(), "when reading block size of {} {}", NAME, index);
         if block_size != 0x0B {
@@ -464,12 +464,12 @@ impl ApplicationExtension {
         ))?;
 
         skip_blocks(r, || {
-            format!("when reading application data of {} {}", NAME, index).into()
+            format!("when reading application data of {NAME} {index}").into()
         })?;
 
         Ok(ApplicationExtension {
-            application_identifier: application_identifier,
-            authentication_code: authentication_code,
+            application_identifier,
+            authentication_code,
         })
     }
 }
@@ -483,9 +483,9 @@ pub struct CommentExtension;
 
 impl CommentExtension {
     fn load<R: ?Sized + BufRead>(index: usize, r: &mut R) -> Result<CommentExtension> {
-        const NAME: &'static str = "comments extension block";
+        const NAME: &str = "comments extension block";
         skip_blocks(r, || {
-            format!("when reading comment data of {} {}", NAME, index).into()
+            format!("when reading comment data of {NAME} {index}").into()
         })?;
 
         Ok(CommentExtension)
@@ -561,10 +561,7 @@ impl Metadata {
     pub fn frames_number(&self) -> usize {
         self.blocks
             .iter()
-            .filter(|b| match **b {
-                Block::ImageDescriptor(_) => true,
-                _ => false,
-            })
+            .filter(|b| matches!(**b, Block::ImageDescriptor(_)))
             .count()
     }
 
@@ -598,7 +595,7 @@ impl LoadableMetadata for Metadata {
         let global_color_table = (packed_flags & 0b10000000) > 0;
         let color_resolution = (packed_flags & 0b01110000) >> 4;
         let global_color_table_sorted = (packed_flags & 0b00001000) > 0;
-        let global_color_table_size_p = (packed_flags & 0b00000111) >> 0;
+        let global_color_table_size_p = packed_flags & 0b00000111;
 
         let global_color_table_size = if global_color_table {
             1u16 << (global_color_table_size_p + 1)
@@ -654,7 +651,7 @@ impl LoadableMetadata for Metadata {
         }
 
         Ok(Metadata {
-            version: version,
+            version,
 
             dimensions: (width, height).into(),
 
@@ -669,10 +666,10 @@ impl LoadableMetadata for Metadata {
 
             color_resolution: 1u16 << (color_resolution + 1),
 
-            background_color_index: background_color_index,
-            pixel_aspect_ratio: pixel_aspect_ratio,
+            background_color_index,
+            pixel_aspect_ratio,
 
-            blocks: blocks,
+            blocks,
         })
     }
 }

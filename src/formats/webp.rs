@@ -62,19 +62,17 @@ impl LoadableMetadata for Metadata {
             return Err(invalid_format!("invalid WEBP signature"));
         }
 
-        loop {
-            let mut chunk = match root.next() {
-                Some(c) => c?,
-                None => return Err(unexpected_eof!("when reading first WEBP chunk")),
-            };
+        let mut chunk = match root.next() {
+            Some(c) => c?,
+            None => return Err(unexpected_eof!("when reading first WEBP chunk")),
+        };
 
-            match chunk.chunk_id() {
-                VP8_CHUNK_ID => return read_vp8_chunk(&mut chunk).map(Metadata::VP8),
-                VP8L_CHUNK_ID => return Err(invalid_format!("unsupported (yet) VP8 chunk id")),
-                VP8X_CHUNK_ID => return Err(invalid_format!("unsupported (yet) VP8 chunk id")),
-                ALPH_CHUNK_ID => return Err(invalid_format!("unsupported (yet) VP8 chunk id")),
-                cid => return Err(invalid_format!("invalid WEBP chunk id: {}", cid)),
-            }
+        match chunk.chunk_id() {
+            VP8_CHUNK_ID => read_vp8_chunk(&mut chunk).map(Metadata::VP8),
+            VP8L_CHUNK_ID => Err(invalid_format!("unsupported (yet) VP8 chunk id")),
+            VP8X_CHUNK_ID => Err(invalid_format!("unsupported (yet) VP8 chunk id")),
+            ALPH_CHUNK_ID => Err(invalid_format!("unsupported (yet) VP8 chunk id")),
+            cid => Err(invalid_format!("invalid WEBP chunk id: {}", cid)),
         }
     }
 }
@@ -113,7 +111,7 @@ fn read_vp8_chunk(chunk: &mut RiffChunk) -> Result<VP8Metadata> {
             .map_err(if_eof!(std, "when reading VP8 key frame header"))?;
 
         // check magic value
-        if &hdr[..3] != &[0x9d, 0x01, 0x2a] {
+        if hdr[..3] != [0x9d, 0x01, 0x2a] {
             return Err(invalid_format!(
                 "VP8 key frame magic code is invalid: {:?}",
                 &hdr[..3]
@@ -135,8 +133,8 @@ fn read_vp8_chunk(chunk: &mut RiffChunk) -> Result<VP8Metadata> {
 
         result.frame = VP8Frame::Key {
             dimensions: (width, height).into(),
-            x_scale: x_scale,
-            y_scale: y_scale,
+            x_scale,
+            y_scale,
         };
     }
 

@@ -1,22 +1,22 @@
 extern crate immeta;
 
+use immeta::formats::{gif, jpeg, png};
+use immeta::markers::{Gif, Jpeg, Png, Webp};
 use immeta::Dimensions;
-use immeta::formats::{png, gif, jpeg};
-use immeta::markers::{Png, Gif, Jpeg, Webp};
 
 const OWLET_DIM: Dimensions = Dimensions {
     width: 1280,
-    height: 857
+    height: 857,
 };
 
 const DROP_DIM: Dimensions = Dimensions {
     width: 238,
-    height: 212
+    height: 212,
 };
 
 const CHERRY_DIM: Dimensions = Dimensions {
     width: 1024,
-    height: 772
+    height: 772,
 };
 
 #[test]
@@ -47,7 +47,10 @@ fn test_png() {
     assert_eq!(md.dimensions, OWLET_DIM);
     assert_eq!(md.color_type, png::ColorType::Rgb);
     assert_eq!(md.color_depth, 24);
-    assert_eq!(md.compression_method, png::CompressionMethod::DeflateInflate);
+    assert_eq!(
+        md.compression_method,
+        png::CompressionMethod::DeflateInflate
+    );
     assert_eq!(md.filter_method, png::FilterMethod::AdaptiveFiltering);
     assert_eq!(md.interlace_method, png::InterlaceMethod::Disabled);
 }
@@ -62,33 +65,41 @@ fn test_gif_plain() {
     let md = md.into::<Gif>().ok().expect("not GIF metadata");
     assert_eq!(md.version, gif::Version::V89a);
     assert_eq!(md.dimensions, OWLET_DIM);
-    assert_eq!(md.global_color_table, Some(gif::ColorTable {
-        size: 256,
-        sorted: false
-    }));
+    assert_eq!(
+        md.global_color_table,
+        Some(gif::ColorTable {
+            size: 256,
+            sorted: false
+        })
+    );
     assert_eq!(md.color_resolution, 256);
     assert_eq!(md.background_color_index, 0);
     assert_eq!(md.pixel_aspect_ratio, 0);
     assert_eq!(md.frames_number(), 1);
     assert_eq!(md.is_animated(), false);
-    assert_eq!(md.blocks, vec![
-        gif::Block::GraphicControlExtension(gif::GraphicControlExtension {
-            disposal_method: gif::DisposalMethod::None,
-            user_input: false,
-            transparent_color_index: None,
-            delay_time: 0
-        }),
-        gif::Block::ApplicationExtension(gif::ApplicationExtension {
-            application_identifier: *b"ImageMag",
-            authentication_code: *b"ick"
-        }),
-        gif::Block::ImageDescriptor(gif::ImageDescriptor {
-            left: 0, top: 0,
-            width: 1280, height: 857,
-            local_color_table: None,
-            interlace: false
-        })
-    ])
+    assert_eq!(
+        md.blocks,
+        vec![
+            gif::Block::GraphicControlExtension(gif::GraphicControlExtension {
+                disposal_method: gif::DisposalMethod::None,
+                user_input: false,
+                transparent_color_index: None,
+                delay_time: 0
+            }),
+            gif::Block::ApplicationExtension(gif::ApplicationExtension {
+                application_identifier: *b"ImageMag",
+                authentication_code: *b"ick"
+            }),
+            gif::Block::ImageDescriptor(gif::ImageDescriptor {
+                left: 0,
+                top: 0,
+                width: 1280,
+                height: 857,
+                local_color_table: None,
+                interlace: false
+            })
+        ]
+    )
 }
 
 #[test]
@@ -101,10 +112,13 @@ fn test_gif_animated() {
     let md = md.into::<Gif>().ok().expect("not GIF metadata");
     assert_eq!(md.version, gif::Version::V89a);
     assert_eq!(md.dimensions, DROP_DIM);
-    assert_eq!(md.global_color_table, Some(gif::ColorTable {
-        size: 256,
-        sorted: false
-    }));
+    assert_eq!(
+        md.global_color_table,
+        Some(gif::ColorTable {
+            size: 256,
+            sorted: false
+        })
+    );
     assert_eq!(md.color_resolution, 128);
     assert_eq!(md.background_color_index, 255);
     assert_eq!(md.pixel_aspect_ratio, 0);
@@ -128,13 +142,13 @@ fn test_gif_animated() {
 
     for i in 0..30 {
         match blocks.next() {
-            Some(&gif::Block::GraphicControlExtension(ref gce)) => {
+            Some(gif::Block::GraphicControlExtension(gce)) => {
                 assert_eq!(
                     gce,
                     &gif::GraphicControlExtension {
-                        disposal_method: if i == 29 { 
-                            gif::DisposalMethod::None 
-                        } else { 
+                        disposal_method: if i == 29 {
+                            gif::DisposalMethod::None
+                        } else {
                             gif::DisposalMethod::DoNotDispose
                         },
                         user_input: false,
@@ -144,15 +158,16 @@ fn test_gif_animated() {
                 );
                 assert_eq!(gce.delay_time_ms(), 70);
             }
-            _ => panic!("Invalid block")
+            _ => panic!("Invalid block"),
         }
-        
 
         assert_eq!(
             blocks.next().unwrap(),
             &gif::Block::ImageDescriptor(gif::ImageDescriptor {
-                left: 0, top: 0,
-                width: 238, height: 212,
+                left: 0,
+                top: 0,
+                width: 238,
+                height: 212,
                 local_color_table: None,
                 interlace: false
             })
@@ -171,5 +186,5 @@ fn test_webp() {
 
     let md = md.into::<Webp>().ok().expect("not WEBP metadata");
 
-    println!("{:?}", md);
+    println!("{md:?}");
 }

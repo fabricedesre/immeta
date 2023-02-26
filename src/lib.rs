@@ -11,7 +11,7 @@
 //! types of metadata available within them. In fact, the only common piece of metadata
 //! between all of them is image resolution.
 //!
-//! immeta can inspect an image file and load the metadata specific to this format. Metadata 
+//! immeta can inspect an image file and load the metadata specific to this format. Metadata
 //! for each image format is exposed as a separate type; there is also a generic type
 //! which is used for dynamic image type detection. Naturally, it is possible to go from
 //! the generic type to some specific type (if it is the actual image type, of course).
@@ -22,7 +22,7 @@
 //!   * PNG 1.2
 //!   * GIF (both 87a and 89a)
 //!
-//! Support for more types will come in future versions, as well as support for particular 
+//! Support for more types will come in future versions, as well as support for particular
 //! metadata kinds (e.g. EXIF tags in JPEG) which are not yet available.
 //!
 //! **Important note:** this library only allows inspecting image metadata, not the image
@@ -30,12 +30,14 @@
 //! which the image consists of. If you need this functionality, consider using a library
 //! like [image](https://crates.io/crates/image).
 
-pub use types::*;
-pub use traits::*;
 pub use generic::*;
+pub use traits::*;
+pub use types::*;
 
-#[macro_use] mod macros;
-#[macro_use] mod generic;
+#[macro_use]
+mod macros;
+#[macro_use]
+mod generic;
 mod traits;
 mod types;
 mod utils;

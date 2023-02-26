@@ -16,7 +16,7 @@ pub struct TiffReader<R: Read + Seek> {
 impl<R: Read + Seek> TiffReader<R> {
     /// Wraps the provider `Read + Seek` implementation and returns a new TIFF reader.
     pub fn new(source: R) -> TiffReader<R> {
-        TiffReader { source: source }
+        TiffReader { source }
     }
 
     /// Returns an iterator over IFDs in the TIFF document.
@@ -65,7 +65,7 @@ impl<R: Read + Seek> TiffReader<R> {
 
         Ok(LazyIfds {
             source: RefCell::new(self.source),
-            byte_order: byte_order,
+            byte_order,
             next_ifd_offset: Cell::new(next_ifd_offset as u64),
         })
     }
@@ -117,7 +117,7 @@ impl<'a, R: Read + Seek> Ifds<'a, R> {
             self.0
                 .source
                 .borrow_mut()
-                .seek(SeekFrom::Start(next_ifd_offset as u64)),
+                .seek(SeekFrom::Start(next_ifd_offset)),
             "when seeking to the beginning of the next IFD"
         );
         let current_ifd_offset = next_ifd_offset;
@@ -139,7 +139,7 @@ impl<'a, R: Read + Seek> Ifds<'a, R> {
             self.0
                 .source
                 .borrow_mut()
-                .seek(SeekFrom::Start(next_ifd_offset_offset as u64)),
+                .seek(SeekFrom::Start(next_ifd_offset_offset)),
             "when seeking to the next IFD offset"
         );
 
@@ -219,23 +219,20 @@ impl<'a, R: Read + Seek + 'a> Ifd<'a, R> {
         );
 
         println!("---------------------------------");
-        println!("Entry tag:                   {:04X}, {}", tag, tag);
-        println!(
-            "Entry type:                  {:04X}, {}",
-            entry_type, entry_type
-        );
-        println!("Entry items count:       {:08X}, {}", count, count);
-        println!("Entry data offset/value: {:08X}, {}", offset, offset);
+        println!("Entry tag:               {tag:04X}, {tag}");
+        println!("Entry type:              {entry_type:04X}, {entry_type}");
+        println!("Entry items count:       {count:08X}, {count}");
+        println!("Entry data offset/value: {offset:08X}, {offset}");
         println!("---------------------------------");
 
         self.current_entry += 1;
 
         Ok(Entry {
             ifds: self.ifds,
-            tag: tag,
+            tag,
             entry_type: entry_type.into(),
-            count: count,
-            offset: offset,
+            count,
+            offset,
         })
     }
 }
@@ -345,7 +342,7 @@ impl<'a, R: Read + Seek + 'a> Entry<'a, R> {
                     Some(EntryValues::Embedded(EmbeddedValues {
                         current: 0,
                         count: self.count,
-                        data: data,
+                        data,
                         byte_order: self.ifds.byte_order,
                         _entry_type_repr: PhantomData,
                     }))
@@ -553,8 +550,8 @@ pub mod entry_types {
                     }
                 }
                 let mut substrings = ArrayVec::<_, 4>::new();
-                find_substrings(&bs[..count as usize], &mut substrings);
-                substrings.get(n as usize)
+                find_substrings(&bs[..count], &mut substrings);
+                substrings.get(n)
                     .map(|&(s, e)| unsafe { str::from_utf8_unchecked(&bs[s..e]).to_owned() })
             };
         Short, u16,

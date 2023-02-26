@@ -28,10 +28,10 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Error::InvalidFormat(ref s) => write!(f, "invalid image format: {}", s),
+            Error::InvalidFormat(ref s) => write!(f, "invalid image format: {s}"),
             Error::UnexpectedEndOfFile(None) => write!(f, "unexpected end of file"),
-            Error::UnexpectedEndOfFile(Some(ref s)) => write!(f, "unexpected end of file: {}", s),
-            Error::Io(ref e) => write!(f, "I/O error: {}", e),
+            Error::UnexpectedEndOfFile(Some(ref s)) => write!(f, "unexpected end of file: {s}"),
+            Error::Io(ref e) => write!(f, "I/O error: {e}"),
         }
     }
 }
